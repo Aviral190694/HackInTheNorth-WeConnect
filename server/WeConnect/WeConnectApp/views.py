@@ -267,9 +267,9 @@ def getEvent(request):
             jsondict = []
             for event in events:
                 datalist = {}
-                datalist["time"] = event.EventCreatedTime
+                datalist["time"] = str(event.EventCreatedTime)
                 datalist["totalTime"] = event.TotalEventTime
-                if timezone.now() - time < timedelta(hours=event.totalEventTime):
+                if timezone.now() - event.EventCreatedTime < timedelta(hours=int(event.TotalEventTime)):
                    # print "eventDetails"
                     print event.eventName
                     datalist["eventname"] = event.eventName
