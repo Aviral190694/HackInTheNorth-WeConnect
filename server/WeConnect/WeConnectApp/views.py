@@ -262,7 +262,7 @@ def getEvent(request):
     try:
         if WeConnectApp.models.Event.objects.filter(eventExpired=False).exists():
             print("User Already Registered")
-            events = WeConnectApp.models.Event.objects.filter(eventExpired=False)
+            events = WeConnectApp.models.Event.objects.filter(eventExpired=False)[:30]
             # user.userUniqId = userUniqueId
             jsondict = []
             for event in events:
@@ -274,18 +274,18 @@ def getEvent(request):
                     datalist["eventname"] = event.eventName
                     print event.eventDetails
                     datalist["eventDetails"] =  event.eventDetails
+                    datalist["eventImage"] = event.eventImage
                     datalist["userID"] = event.eventCreatedBy
-                    user = WeConnectApp.models.User.objects.get(UserIdfb = datalist["userID"])
-                    datalist["Username"] = user.userName
+                    user = WeConnectApp.models.User.objects.get(userUniq = event.eventCreatedBy)
+                    datalist["userName"] = user.userName
+                    datalist["userIdFb"] = user.userIdfb
                     #datalist["UserUniq"] = user.userUniq
-                    #datalist["Usertotalfriends"] = user.fbTotalFriends
-                    datalist["Usercreatedtime"] = user.userCreatedTime
                     datalist["UserImage"] = user.userImageUrlLarge
                     datalist["UserImageThumb"] = user.userImageUrlThumb
+                    jsondict.append(datalist)
                 else:
                     event.eventExpired = True
                     event.save()
-                jsondict.append(datalist)
 
         else:
             print("No Events")
