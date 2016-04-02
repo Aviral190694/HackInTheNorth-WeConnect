@@ -256,7 +256,7 @@ def createEvent(request):
 @csrf_exempt
 def getEvent(request):
     print "Creating an Event"
-    datalist = {'EventId': "None"}
+
     print "GET Request to get all the Events"
         # print request.POST
     try:
@@ -266,6 +266,7 @@ def getEvent(request):
             # user.userUniqId = userUniqueId
             jsondict = []
             for event in events:
+                datalist = {}
                 datalist["time"] = event.EventCreatedTime
                 datalist["totalTime"] = event.TotalEventTime
                 if timezone.now() - time < timedelta(hours=event.totalEventTime):
