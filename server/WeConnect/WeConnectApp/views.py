@@ -9,20 +9,15 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import HttpResponse
 from django.http import HttpResponseBadRequest
 import json
-from django.http import Http404
+
 import facebook
 import uuid
 from django.utils import timezone
 import WeConnectApp.models
 import urllib2
-from django.db.models import Q
-import datetime
+
 from datetime import timedelta
-import re
-import pytz
-import requests
-from operator import itemgetter
-import time
+
 from threading import Thread
 def postpone(function):
   def decorator(*args, **kwargs):
@@ -259,24 +254,26 @@ def getEvent(request):
 
     print "GET Request to get all the Events"
         # print request.POST
+    jsondict = []
     try:
         if WeConnectApp.models.Event.objects.filter(eventExpired=False).exists():
             print("User Already Registered")
-            events = WeConnectApp.models.Event.objects.filter(eventExpired=False)[:30]
+            events = WeConnectApp.models.Event.objects.filter(eventExpired=False).order_by("-EventCreatedTime")[:30]
             # user.userUniqId = userUniqueId
-            jsondict = []
+
             for event in events:
                 datalist = {}
                 datalist["time"] = str(event.EventCreatedTime)
-                datalist["totalTime"] = event.TotalEventTime
+                datalist["totalTime"] = str(event.TotalEventTime)
                 if timezone.now() - event.EventCreatedTime < timedelta(hours=int(event.TotalEventTime)):
                    # print "eventDetails"
                     print event.eventName
                     datalist["eventname"] = event.eventName
+                    datalist["eventId"] = str(event.event)
                     print event.eventDetails
                     datalist["eventDetails"] =  event.eventDetails
                     datalist["eventImage"] = event.eventImage
-                    datalist["userID"] = event.eventCreatedBy
+                    datalist["userID"] = str(event.eventCreatedBy)
                     user = WeConnectApp.models.User.objects.get(userUniq = event.eventCreatedBy)
                     datalist["userName"] = user.userName
                     datalist["userIdFb"] = user.userIdfb
@@ -302,7 +299,7 @@ def getEvent(request):
 @csrf_exempt
 def getUserEvent(request):
     print "Creating an Event"
-    data = {'EventId': "None"}
+    jsondict = []
     # The request will be processed if the request is Post otherwise Bad Request will be returned
     if request.method == 'GET':
         return HttpResponseBadRequest("Get Request not accepted")
@@ -318,9 +315,17 @@ def getUserEvent(request):
                 if WeConnectApp.models.User.objects.filter(userUniq=userId).exists():
                     print("User Already Registered")
                     user = WeConnectApp.models.User.objects.get(userUniq=userId)
-                    events = user.userevent_set.all().order_by("-time")
+                    events = user.userevent_set.all().order_by("-time")[:30]
+
                     for event in events:
-                        print event.event
+                        data = {}
+                        newEvent = WeConnectApp.models.Event.objects.get(event=event.event)
+                        data["EventName"] = newEvent.eventName
+                        data["EventDetails"] = newEvent.eventDetails
+                        data["EventImage"] = newEvent.eventImage
+                        data["EventTime"] = str(newEvent.TotalEventTime)
+                        data["EventId"] = str(event.event)
+                        jsondict.append(data)
                 else:
                     print("Invalid User")
                     # print len(userUniqueId),len(userName),len(userEmailFb)
@@ -330,7 +335,9 @@ def getUserEvent(request):
                 return HttpResponseBadRequest()
     #     add Code here to store all the value to the database
     else:
+
         return HttpResponseBadRequest("unknown type of request")
+    data = {"data" : jsondict}
     return HttpResponse(json.dumps(data), content_type='application/json')
 
 # Get UserName, userType, User ImageUrl, No of people user Follow, No of people the user get followed by
@@ -341,11 +348,10 @@ def getUserInfo(request):
     if request.method == 'GET':
         raise HttpResponseBadRequest("Unknown Error")
     elif request.method == 'POST':
-        if request.POST.get('userId') is None or request.POST.get('userClient') is None:
+        if request.POST.get('userId') is None:
             return HttpResponseBadRequest()
         else:
             userId = request.POST.get('userId')
-            userClient = request.POST.get('userClient')
             try:
                 if WeConnectApp.models.User.objects.filter(userUniq=userId).exists():
                     user = WeConnectApp.models.User.objects.get(userUniq=userId)
@@ -376,7 +382,8 @@ def SignupEvent(request):
     elif request.method == 'POST':
         print "Post Request"
         # print request.POST
-        if request.POST.get('userId') is None or request.POST.get('eventId'):
+        if request.POST.get('userId') is None or request.POST.get('eventId') is None:
+            print("Error Recieved")
             return HttpResponseBadRequest("Parameter Problem")
         else:
             print "request Recieved"
@@ -385,9 +392,13 @@ def SignupEvent(request):
             try:
                 if WeConnectApp.models.User.objects.filter(userUniq=userId).exists():
                     if WeConnectApp.models.Event.objects.filter(event=eventId).exists():
+
                         user = WeConnectApp.models.User.objects.get(userUniq=userId)
-                        user.userevent_set.create(event=eventId,time=timezone.now())
-                        user.save()
+                        if user.userevent_set.filter(event=eventId).exists():
+                            print("Already Signed Up")
+                        else:
+                            user.userevent_set.create(event=eventId,time=timezone.now())
+                            user.save()
                         data['SignedUp'] = "True"
                     else:
                         print("Invalid Event")
@@ -403,15 +414,90 @@ def SignupEvent(request):
         return HttpResponseBadRequest("unknown type of request")
     return HttpResponse(json.dumps(data), content_type='application/json')
 
-# Created By Ashish
+
 @csrf_exempt
-def GetAllLocations(userUniqId):
-    print " All Locations of the user "
+def IsSignupEvent(request):
+    print "Creating an Event"
+    data = {}
+    # The request will be processed if the request is Post otherwise Bad Request will be returned
+    if request.method == 'GET':
+        return HttpResponseBadRequest("Get Request not accepted")
+    elif request.method == 'POST':
+        print "Post Request"
+        # print request.POST
+        if request.POST.get('userId') is None or request.POST.get('eventId'):
+            return HttpResponseBadRequest("Parameter Problem")
+        else:
+            print "request Recieved"
+            userId = request.POST.get('userId')
+            eventId = request.POST.get('eventId')
+            try:
+                if WeConnectApp.models.User.objects.filter(userUniq=userId).exists():
+                    if WeConnectApp.models.Event.objects.filter(event=eventId).exists():
+                        user = WeConnectApp.models.User.objects.get(userUniq=userId)
+                        if user.userevent_set.filter(event=eventId).exists():
+                            data["success"] = "True"
+                        else:
+                            data["success"] = "False"
+                    else:
+                        print("Invalid Event")
+                else:
+                    print("Invalid User")
+                    # print len(userUniqueId),len(userName),len(userEmailFb)
+
+            except Exception as e:
+                print e.message,type(e)
+                return HttpResponseBadRequest()
+    #     add Code here to store all the value to the database
+    else:
+        return HttpResponseBadRequest("unknown type of request")
+    return HttpResponse(json.dumps(data), content_type='application/json')
+
 @csrf_exempt
-def GetAllEvents(userUniqid):
-    print "All events of the user"
-@csrf_exempt
-def SearchEvent(request):
-    print "Fetch/search the event by their id"
+def UserAtEvent(request):
+    print "Creating an Event"
+    data = {}
+    dataArr = []
+    # The request will be processed if the request is Post otherwise Bad Request will be returned
+    if request.method == 'GET':
+        return HttpResponseBadRequest("Get Request not accepted")
+    elif request.method == 'POST':
+        print "Post Request"
+        # print request.POST
+        if request.POST.get('eventId') is None:
+            return HttpResponseBadRequest("Parameter Problem")
+        else:
+            print "request Recieved"
+            eventId = request.POST.get('eventId')
+            try:
+                if WeConnectApp.models.Event.objects.filter(event=eventId).exists():
+                    users = WeConnectApp.models.userEvent.objects.filter(event=eventId).order_by("-time")[:30]
+                    for user in users:
+                        # print user
+                        # print user.time
+                        # print user.user
+                        # newUser = WeConnectApp.models.User.objects.get(userUniq=user.user.userUniq)
+                        print user.user.userName
+                        data = {}
+                        data["userName"] = user.user.userName
+                        data["userId"] = str(user.user.userUniq)
+                        data["userFbId"] = str(user.user.userIdfb)
+                        data["userImage"] = str(user.user.userImageUrlThumb)
+                        dataArr.append(data)
+
+
+                else:
+                    print("Invalid User")
+                    # print len(userUniqueId),len(userName),len(userEmailFb)
+
+            except Exception as e:
+                print e.message,type(e)
+                return HttpResponseBadRequest()
+    #     add Code here to store all the value to the database
+    else:
+        return HttpResponseBadRequest("unknown type of request")
+    data = {'Data': dataArr}
+    return HttpResponse(json.dumps(data), content_type='application/json')
+
 
 

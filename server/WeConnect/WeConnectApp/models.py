@@ -14,6 +14,8 @@ class User(models.Model):
     userAccessTokenfb = models.CharField(max_length=500,blank=False,default="")
     userCreatedTime = models.DateTimeField('User Created')
     fbTotalFriends = models.BigIntegerField(editable=True,blank=True,default=0)
+    def __str__(self):              # __unicode__ on Python 2
+        return str(self.userUniq) + " " +str(self.userName)
 
 class UserFriends(models.Model):
     user = models.ForeignKey(User)
